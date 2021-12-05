@@ -1,0 +1,20 @@
+FAIL
+Kernel panic in run: PANIC at ../../userprog/exception.c:104 in kill(): Kernel bug - unexpected interrupt in kernel
+Call stack: 0xc00297d3 0xc002cf9d 0xc002d08f 0xc0021c09 0xc0021e29 0xc002d0ec 0xc0021c09 0xc0021e29 0x8048090 0x804817f 0x80487a6
+Translation of call stack:
+In kernel.o:
+0xc00297d3: debug_panic (.../../lib/kernel/debug.c:38)
+0xc002cf9d: kill (.../userprog/exception.c:110)
+0xc002d08f: page_fault (....c:163 (discriminator 12))
+0xc0021c09: intr_handler (..../threads/interrupt.c:367)
+0xc0021e29: intr_entry (threads/intr-stubs.S:38)
+0xc002d0ec: syscall_handler (.../../userprog/syscall.c:48)
+0xc0021c09: intr_handler (..../threads/interrupt.c:367)
+0xc0021e29: intr_entry (threads/intr-stubs.S:38)
+In tests/userprog/sc-boundary-3:
+0x08048090: test_main (...erprog/sc-boundary-3.c:19)
+0x0804817f: main (...ild/../../tests/main.c:13)
+0x080487a6: _start (.../../../lib/user/entry.c:9)
+Translations of user virtual addresses above are based on a guess at
+the binary to use.  If this guess is incorrect, then those
+translations will be misleading.
