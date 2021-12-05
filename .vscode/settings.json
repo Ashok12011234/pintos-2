@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "cstdlib": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "*.tcc": "c",
+        "memory": "c",
+        "*.inc": "c",
+        "numeric": "c"
     }
 }

@@ -93,9 +93,12 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     
-   bool ex;
+    bool is_exited;
 
     struct thread* parent;
+    int exit_error;
+    struct list files;
+    int fd_count;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

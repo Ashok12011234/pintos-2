@@ -27,25 +27,25 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *cmd_name) 
 {
-  char *fn_copy;
+  char *cmd_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  cmd_copy = palloc_get_page (0);
+  if (cmd_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (cmd_copy, cmd_name, PGSIZE);
 
   
-  char *cmd_name, *args;
-  cmd_name = strtok_r (fn_copy, " ", &args);
+  char *file_name, *args;
+  file_name = strtok_r (cmd_copy, " ", &args);
   
-  tid = thread_create (cmd_name, PRI_DEFAULT, start_process, file_name);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, cmd_name);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (cmd_copy); 
   return tid;
 }
 
@@ -92,7 +92,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-    while(!thread_current()->ex)
+    while(!thread_current()->is_exited)
     ;
   return -1;
 }
@@ -104,9 +104,8 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  int exit_code = 0;
-  printf("%s: exit(%d)\n",cur->name,exit_code);
-
+  printf("%s: exit(%d)\n",cur->name,cur->exit_error);
+  close_all_files(&thread_current()->files);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -232,7 +231,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Open executable file. */
   file = filesys_open (t->name);
-  //TODO : Free fn_cp
+
 
   if (file == NULL) 
     {
@@ -249,7 +248,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", t->name);
       goto done; 
     }
 
@@ -440,9 +439,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp, const char *file_name) 
 {
-  //debug_backtrace();
-  //printf(file_name);
-  //printf("hi ak");
+
   uint8_t *kpage;
   bool success = false;
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
@@ -456,10 +453,11 @@ setup_stack (void **esp, const char *file_name)
     }
 
   char *token, *save_ptr;
-  int argc = 0,i;
+  int argc = 0;  //to save number of arguments
+  int i;
 
   char *copy = malloc(strlen(file_name)+1);
-  strlcpy (copy, file_name, strlen(file_name));
+  strlcpy (copy, file_name, strlen(file_name)+1);
 
 
   for (token = strtok_r (copy, " ", &save_ptr); token != NULL;
@@ -467,48 +465,37 @@ setup_stack (void **esp, const char *file_name)
     argc++;
 
 
-  int *argv = calloc(argc,sizeof(int));
+  int *argv = calloc(argc,sizeof(int));  //allocate bytes for address of arg s which are initialized to zero
 
   for (token = strtok_r (file_name, " ", &save_ptr),i=0; token != NULL;
     token = strtok_r (NULL, " ", &save_ptr),i++)
     {
-      *esp -= strlen(token) + 1;
-      memcpy(*esp,token,strlen(token) + 1);
-      //hex_dump(*esp,*esp,PHYS_BASE-(*esp),true);
-
-      argv[i]=*esp;
+      *esp -= strlen(token) + 1; //decrement stack pointer
+      memcpy(*esp,token,strlen(token) + 1);  //copy the tokens
+      argv[i]=*esp;   //save the address of pointer for each arg
     }
 
   while((int)*esp%4!=0)
   {
-    *esp-=sizeof(char);
-    char x = 0;
-    memcpy(*esp,&x,sizeof(char));
+    *esp-=sizeof(char);  //decrement for correct allignment
   }
 
-  int zero = 0;
-
-  *esp-=sizeof(int);
-  memcpy(*esp,&zero,sizeof(int));
+  *esp-=sizeof(int);  //decrement for 4 0
 
   for(i=argc-1;i>=0;i--)
   {
     *esp-=sizeof(int);
-    memcpy(*esp,&argv[i],sizeof(int));
+    memcpy(*esp,&argv[i],sizeof(int));    //copy the pointers of args
   }
 
   int pt = *esp;
   *esp-=sizeof(int);
-  memcpy(*esp,&pt,sizeof(int));
+  memcpy(*esp,&pt,sizeof(int));   //copy pointer to the block which has pointer to address of first arg 
 
   *esp-=sizeof(int);
-  memcpy(*esp,&argc,sizeof(int));
+  memcpy(*esp,&argc,sizeof(int));   //copy number of args
 
-  *esp-=sizeof(int);
-  memcpy(*esp,&zero,sizeof(int));
-
-  //hex_dump(*esp,*esp,PHYS_BASE-(*esp),true);
-
+  *esp-=sizeof(int);    //for return address
 
   return success;
 }
